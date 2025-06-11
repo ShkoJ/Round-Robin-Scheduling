@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Round Robin CPU Scheduler Presentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Cool Blues & Grays -->
+    <!-- Application Structure Plan: The SPA is now structured as a sequential, slide-by-slide presentation. Users navigate through predefined sections ('Learn', 'Simulate', 'Project Insights') using 'Next' and 'Previous' buttons. This mimics a PowerPoint flow, making it ideal for a guided presentation. The 'Learn' section provides foundational knowledge, the 'Simulate' section offers hands-on interaction and results analysis (including LLM summary), and 'Project Insights' offers contextual details. This linear progression was chosen to support a formal presentation where content is delivered in a specific order, enhancing clarity and flow during a demonstration. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Core RR concepts (AT, BT, etc.) -> Goal: Inform -> Viz/Method: Interactive cards, HTML/CSS diagram -> Interaction: Hover effects on cards -> Justification: Makes learning concepts more engaging than static text.
+        - Report Info: Process data (AT, BT, Quantum) -> Goal: Simulate -> Viz/Method: Dynamic HTML table for input, slider for quantum -> Interaction: Users can add/remove processes, adjust quantum, and run simulation -> Justification: Provides a hands-on experience, which is the core of the project.
+        - Report Info: Simulation Results (CT, TAT, WT, Gantt) -> Goal: Analyze -> Viz/Method: HTML table for stats, Chart.js for Gantt chart -> Interaction: Chart tooltips on hover -> Justification: Chart.js provides a clear, interactive visualization of the scheduling process, which is superior to a static image.
+        - Report Info: Methodology, Challenges, Conclusion -> Goal: Contextualize -> Viz/Method: Accordion component -> Interaction: Click to expand/collapse sections -> Justification: Organizes a large amount of text content neatly, preventing the page from becoming too long and overwhelming.
+        - Library/Method: Vanilla JS for simulation logic and DOM manipulation, Chart.js for the Gantt chart. Gemini API for LLM-powered summary generation. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #1e293b;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+            max-height: 250px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+                max-height: 350px;
+            }
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+         .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .modal {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            position: relative;
+        }
+        .close-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto px-4 py-8 md:py-12">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-slate-800 mb-2">Round Robin CPU Scheduler</h1>
+            <p class="text-lg text-slate-600">An Interactive Exploration by Peter Siawish, Saleem Naseer, and Shko Jabbar</p>
+        </header>
+
+        <main>
+            <section id="learn" class="content-section active">
+                 <div class="text-center mb-12 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-800 mb-4">Understanding CPU Scheduling</h2>
+                    <p class="text-slate-600 text-lg">CPU scheduling is the process an operating system uses to manage which task gets to use the CPU. Its goal is to maximize CPU utilization and minimize response times for all processes. This interactive tool explores the Round Robin algorithm, a fair and widely-used scheduling method. Click on the cards below to learn about the key metrics used to evaluate its performance.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                    <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-xl mb-2 text-blue-700">Arrival Time (AT)</h3>
+                        <p class="text-slate-600">The exact moment a process enters the 'ready' queue, waiting for its turn on the CPU.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-xl mb-2 text-blue-700">Burst Time (BT)</h3>
+                        <p class="text-slate-600">The total amount of CPU time a process needs to complete its execution.</p>
+                    </div>
+                     <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-xl mb-2 text-blue-700">Quantum Time</h3>
+                        <p class="text-slate-600">A small, fixed time slice. In Round Robin, each process runs for one quantum before being moved to the back of the queue.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-xl mb-2 text-green-700">Completion Time (CT)</h3>
+                        <p class="text-slate-600">The time at which a process finishes its execution and exits the system.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-xl mb-2 text-amber-700">Turnaround Time (TAT)</h3>
+                        <p class="text-slate-600">Total time a process spends in the system. Calculated as: Completion Time - Arrival Time.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow">
+                        <h3 class="font-bold text-xl mb-2 text-red-700">Waiting Time (WT)</h3>
+                        <p class="text-slate-600">Total time a process spends waiting in the ready queue. Calculated as: Turnaround Time - Burst Time.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="simulate" class="content-section">
+                <div class="text-center mb-12 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-800 mb-4">Round Robin Simulator</h2>
+                    <p class="text-slate-600 text-lg">This is the heart of the application. Add or modify processes in the table below, adjust the quantum time with the slider, and then click "Run Simulation" to see the Round Robin algorithm in action. The results, including a dynamic Gantt chart, will be generated instantly.</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                    <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="font-bold text-xl mb-4 text-slate-700">Process Input</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left" id="process-table">
+                                <thead class="border-b-2 border-slate-200">
+                                    <tr>
+                                        <th class="p-2 font-semibold">Process ID</th>
+                                        <th class="p-2 font-semibold">Arrival Time</th>
+                                        <th class="p-2 font-semibold">Burst Time</th>
+                                        <th class="p-2 font-semibold"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="p-2 font-medium">P1</td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="0" min="0"></td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="5" min="1"></td>
+                                        <td class="p-2 text-center"><button class="text-red-500 hover:text-red-700 font-bold" onclick="removeProcess(this)">X</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2 font-medium">P2</td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="2" min="0"></td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="3" min="1"></td>
+                                        <td class="p-2 text-center"><button class="text-red-500 hover:text-red-700 font-bold" onclick="removeProcess(this)">X</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2 font-medium">P3</td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="4" min="0"></td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="6" min="1"></td>
+                                        <td class="p-2 text-center"><button class="text-red-500 hover:text-red-700 font-bold" onclick="removeProcess(this)">X</button></td>
+                                    </tr>
+                                     <tr>
+                                        <td class="p-2 font-medium">P4</td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="6" min="0"></td>
+                                        <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="4" min="1"></td>
+                                        <td class="p-2 text-center"><button class="text-red-500 hover:text-red-700 font-bold" onclick="removeProcess(this)">X</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="mt-4 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors" onclick="addProcess()">Add Process</button>
+                    </div>
+
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-xl mb-4 text-slate-700">Configuration</h3>
+                            <label for="quantum-slider" class="block font-medium mb-2">Quantum Time: <span id="quantum-value" class="font-bold text-blue-600">3</span></label>
+                            <input id="quantum-slider" type="range" min="1" max="10" value="3" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <button class="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-colors mt-6" id="run-simulation">Run Simulation</button>
+                    </div>
+                </div>
+
+                <div id="results-container" class="mt-12 hidden">
+                    <h2 class="text-3xl font-bold text-slate-800 mb-6 text-center">Simulation Results</h2>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="font-bold text-xl mb-4 text-slate-700">Process Statistics</h3>
+                             <div class="overflow-x-auto">
+                                <table class="w-full text-left" id="results-table">
+                                    <thead class="border-b-2 border-slate-200">
+                                        <tr>
+                                            <th class="p-2 font-semibold">ID</th>
+                                            <th class="p-2 font-semibold">AT</th>
+                                            <th class="p-2 font-semibold">BT</th>
+                                            <th class="p-2 font-semibold">CT</th>
+                                            <th class="p-2 font-semibold">TAT</th>
+                                            <th class="p-2 font-semibold">WT</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                             <div class="mt-6 flex justify-around text-center">
+                                <div>
+                                    <p class="text-slate-500">Avg. Turnaround Time</p>
+                                    <p id="avg-tat" class="text-2xl font-bold text-amber-600"></p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-500">Avg. Waiting Time</p>
+                                    <p id="avg-wt" class="text-2xl font-bold text-red-600"></p>
+                                </div>
+                            </div>
+                            <button id="summarize-btn" class="w-full bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors mt-6">✨ Summarize Results ✨</button>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="font-bold text-xl mb-4 text-slate-700">Gantt Chart</h3>
+                            <div class="chart-container">
+                                <canvas id="gantt-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                 <div id="error-message" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+                    <strong class="font-bold">Error:</strong>
+                    <span class="block sm:inline">Invalid input. Please ensure all burst times are positive.</span>
+                </div>
+            </section>
+
+            <section id="insights" class="content-section">
+                <div class="text-center mb-12 max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-800 mb-4">Project Insights</h2>
+                    <p class="text-slate-600 text-lg">This project was more than just coding; it was a journey through system design, problem-solving, and technology selection. The sections below provide a deeper look into our methodology, the challenges we overcame, and our final conclusions, condensed from our original report.</p>
+                </div>
+
+                <div class="max-w-4xl mx-auto space-y-4">
+                     <div class="accordion-item bg-white rounded-xl shadow-sm">
+                        <button class="accordion-header w-full flex justify-between items-center text-left p-6 font-semibold text-lg text-slate-800">
+                            <span>Methodology</span>
+                            <span class="transform transition-transform duration-300">&#9662;</span>
+                        </button>
+                        <div class="accordion-content px-6 pb-6 text-slate-600">
+                            <p class="mb-4">Our approach was systematic, starting with requirement analysis to define the simulator's scope. We designed the system with a modular architecture to separate the user interface from the core scheduling logic, ensuring the code was readable and scalable.</p>
+                            <h4 class="font-semibold text-slate-700 mb-2">Key Phases:</h4>
+                            <ul class="list-disc list-inside space-y-2">
+                                <li><strong>Requirement Analysis:</strong> Defined functional (simulation, user input, Gantt chart) and non-functional (usability, responsiveness) requirements.</li>
+                                <li><strong>System Design:</strong> Created a modular design using different classes for UI panels (`WelcomePanel`, `InputFormPanel`, `OutputPanel`) and core logic (`RoundRobinScheduler`).</li>
+                                <li><strong>Implementation:</strong> Used Java Swing for the GUI and developed a custom `GanttChartPanel` for dynamic visualization. Event listeners were used to capture user input.</li>
+                                <li><strong>Testing & Validation:</strong> Performed unit, integration, and edge-case testing to ensure the system was robust, accurate, and reliable across various scenarios.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item bg-white rounded-xl shadow-sm">
+                        <button class="accordion-header w-full flex justify-between items-center text-left p-6 font-semibold text-lg text-slate-800">
+                            <span>Challenges & Solutions</span>
+                             <span class="transform transition-transform duration-300">&#9662;</span>
+                        </button>
+                        <div class="accordion-content px-6 pb-6 text-slate-600">
+                            <h4 class="font-semibold text-slate-700 mb-2">Challenge 1: Language Selection</h4>
+                            <p class="mb-4">Our initial consideration was the C language. However, we faced practical challenges with its lack of native GUI support, the steep learning curve of GUI libraries like GTK+, and the verbosity of the resulting code. <br><strong>Solution:</strong> We switched to Java, which offered the built-in and intuitive Swing library for GUI development, platform independence, and leveraged our team's prior experience, leading to faster and more efficient development.</p>
+                            
+                            <h4 class="font-semibold text-slate-700 mb-2">Challenge 2: Dynamic Gantt Chart</h4>
+                            <p>Java Swing's standard components were not sufficient to create a Gantt chart that could dynamically adapt to different simulation outputs. <br><strong>Solution:</strong> We developed a custom `GanttChartPanel` class from scratch. This involved manually handling the graphics rendering (`paintComponent`) and calculating the required width and positions of each process block based on the total simulation time, ensuring an accurate and visually clear representation.</p>
+                        </div>
+                    </div>
+                    
+                     <div class="accordion-item bg-white rounded-xl shadow-sm">
+                        <button class="accordion-header w-full flex justify-between items-center text-left p-6 font-semibold text-lg text-slate-800">
+                            <span>Conclusion</span>
+                            <span class="transform transition-transform duration-300">&#9662;</span>
+                        </button>
+                        <div class="accordion-content px-6 pb-6 text-slate-600">
+                             <p>This project successfully demonstrates the working mechanism of the Round Robin scheduling algorithm through a user-friendly and interactive application. By translating theoretical concepts into a visual and hands-on tool, we were able to create an effective learning aid. The modular approach not only facilitated development but also resulted in a clean, maintainable, and scalable codebase. This project significantly enhanced our understanding of fundamental operating system concepts and improved our practical programming skills, emphasizing the importance of selecting the right tools for the job.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <div class="flex justify-between mt-8">
+            <button id="prev-section-btn" class="bg-gray-300 text-gray-700 font-bold py-2 px-6 rounded-lg hover:bg-gray-400 transition-colors hidden">Previous</button>
+            <button id="next-section-btn" class="bg-blue-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-600 transition-colors">Next</button>
+        </div>
+    </div>
+
+    <div id="summary-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <h3 class="text-2xl font-bold text-slate-800 mb-4">Simulation Summary ✨</h3>
+            <div id="summary-content" class="text-slate-700">
+                <p>Generating summary...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sections = ['learn', 'simulate', 'insights'];
+        let currentSectionIndex = 0;
+
+        const contentSections = document.querySelectorAll('.content-section');
+        const prevButton = document.getElementById('prev-section-btn');
+        const nextButton = document.getElementById('next-section-btn');
+
+        const runButton = document.getElementById('run-simulation');
+        const processTableBody = document.querySelector('#process-table tbody');
+        const resultsContainer = document.getElementById('results-container');
+        const resultsTableBody = document.querySelector('#results-table tbody');
+        const avgTatEl = document.getElementById('avg-tat');
+        const avgWtEl = document.getElementById('avg-wt');
+        const quantumSlider = document.getElementById('quantum-slider');
+        const quantumValueEl = document.getElementById('quantum-value');
+        const errorMessage = document.getElementById('error-message');
+        const summarizeBtn = document.getElementById('summarize-btn');
+        const summaryModal = document.getElementById('summary-modal');
+        const summaryContent = document.getElementById('summary-content');
+
+        let ganttChart = null;
+        let currentSimulationResults = null;
+
+        function showSection(index) {
+            contentSections.forEach((section, i) => {
+                if (i === index) {
+                    section.classList.add('active');
+                } else {
+                    section.classList.remove('active');
+                }
+            });
+            updateNavigationButtons();
+        }
+
+        function updateNavigationButtons() {
+            if (currentSectionIndex === 0) {
+                prevButton.classList.add('hidden');
+            } else {
+                prevButton.classList.remove('hidden');
+            }
+
+            if (currentSectionIndex === sections.length - 1) {
+                nextButton.classList.add('hidden');
+            } else {
+                nextButton.classList.remove('hidden');
+            }
+        }
+
+        prevButton.addEventListener('click', () => {
+            if (currentSectionIndex > 0) {
+                currentSectionIndex--;
+                showSection(currentSectionIndex);
+            }
+        });
+
+        nextButton.addEventListener('click', () => {
+            if (currentSectionIndex < sections.length - 1) {
+                currentSectionIndex++;
+                showSection(currentSectionIndex);
+            }
+        });
+
+        const accordions = document.querySelectorAll('.accordion-item');
+        accordions.forEach(item => {
+            const header = item.querySelector('.accordion-header');
+            const content = item.querySelector('.accordion-content');
+            const icon = header.querySelector('span:last-child');
+            
+            header.addEventListener('click', () => {
+                const isOpen = content.style.maxHeight && content.style.maxHeight !== '0px';
+
+                accordions.forEach(otherItem => {
+                    if (otherItem !== item) {
+                        otherItem.querySelector('.accordion-content').style.maxHeight = '0px';
+                         otherItem.querySelector('.accordion-header span:last-child').style.transform = 'rotate(0deg)';
+                    }
+                });
+                
+                if (isOpen) {
+                    content.style.maxHeight = '0px';
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                    icon.style.transform = 'rotate(180deg)';
+                }
+            });
+        });
+
+
+        quantumSlider.addEventListener('input', (e) => {
+            quantumValueEl.textContent = e.target.value;
+        });
+
+        function addProcess() {
+            const rowCount = processTableBody.rows.length;
+            const newRow = processTableBody.insertRow();
+            newRow.innerHTML = `
+                <td class="p-2 font-medium">P${rowCount + 1}</td>
+                <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="0" min="0"></td>
+                <td class="p-2"><input class="w-full p-2 border rounded-md" type="number" value="1" min="1"></td>
+                <td class="p-2 text-center"><button class="text-red-500 hover:text-red-700 font-bold" onclick="removeProcess(this)">X</button></td>
+            `;
+            updateProcessIds();
+        }
+
+        function removeProcess(button) {
+            if (processTableBody.rows.length > 1) {
+                const row = button.parentNode.parentNode;
+                row.parentNode.removeChild(row);
+                updateProcessIds();
+            }
+        }
+        
+        function updateProcessIds() {
+            const rows = processTableBody.rows;
+            for(let i = 0; i < rows.length; i++){
+                rows[i].cells[0].textContent = `P${i+1}`;
+            }
+        }
+
+        runButton.addEventListener('click', () => {
+            const processes = [];
+            const rows = processTableBody.rows;
+            let validInput = true;
+
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].cells;
+                const arrivalTime = parseInt(cells[1].querySelector('input').value);
+                const burstTime = parseInt(cells[2].querySelector('input').value);
+
+                if (isNaN(arrivalTime) || isNaN(burstTime) || burstTime <= 0 || arrivalTime < 0) {
+                    validInput = false;
+                    break;
+                }
+                processes.push({
+                    id: `P${i + 1}`,
+                    pId: i + 1,
+                    arrivalTime,
+                    burstTime,
+                    remainingTime: burstTime
+                });
+            }
+            
+            if (!validInput) {
+                errorMessage.classList.remove('hidden');
+                resultsContainer.classList.add('hidden');
+                return;
+            } else {
+                 errorMessage.classList.add('hidden');
+            }
+
+            const quantumTime = parseInt(quantumSlider.value);
+            const result = runRR(processes, quantumTime);
+            currentSimulationResults = result; // Store results for summary
+            displayResults(result);
+        });
+
+        function runRR(inputProcesses, quantumTime) {
+            const processes = JSON.parse(JSON.stringify(inputProcesses));
+            processes.sort((a, b) => a.arrivalTime - b.arrivalTime);
+
+            const ganttEntries = [];
+            const completed = [];
+            const readyQueue = [];
+            let time = 0;
+            let processIndex = 0;
+
+            while (completed.length < processes.length) {
+                while (processIndex < processes.length && processes[processIndex].arrivalTime <= time) {
+                    readyQueue.push(processes[processIndex]);
+                    processIndex++;
+                }
+
+                if (readyQueue.length === 0) {
+                    if (processIndex < processes.length) {
+                        time = processes[processIndex].arrivalTime;
+                    } else {
+                         break;
+                    }
+                    continue;
+                }
+
+                const current = readyQueue.shift();
+                const runTime = Math.min(current.remainingTime, quantumTime);
+                
+                ganttEntries.push({
+                    processId: current.id,
+                    startTime: time,
+                    endTime: time + runTime
+                });
+
+                time += runTime;
+                current.remainingTime -= runTime;
+
+                while (processIndex < processes.length && processes[processIndex].arrivalTime <= time) {
+                    readyQueue.push(processes[processIndex]);
+                    processIndex++;
+                }
+
+                if (current.remainingTime === 0) {
+                    current.completionTime = time;
+                    current.turnaroundTime = current.completionTime - current.arrivalTime;
+                    current.waitingTime = current.turnaroundTime - current.burstTime;
+                    completed.push(current);
+                } else {
+                    readyQueue.push(current);
+                }
+            }
+            
+            completed.sort((a, b) => a.pId - b.pId);
+            
+            let totalTAT = 0;
+            let totalWT = 0;
+            completed.forEach(p => {
+                totalTAT += p.turnaroundTime;
+                totalWT += p.waitingTime;
+            });
+
+            const avgTAT = completed.length > 0 ? totalTAT / completed.length : 0;
+            const avgWT = completed.length > 0 ? totalWT / completed.length : 0;
+
+            return {
+                completedProcesses: completed,
+                ganttEntries,
+                averageTurnaroundTime: avgTAT,
+                averageWaitingTime: avgWT,
+                quantumTime: quantumTime
+            };
+        }
+
+        function displayResults(result) {
+            resultsTableBody.innerHTML = '';
+            result.completedProcesses.forEach(p => {
+                const row = resultsTableBody.insertRow();
+                row.innerHTML = `
+                    <td class="p-2 font-medium">${p.id}</td>
+                    <td class="p-2">${p.arrivalTime}</td>
+                    <td class="p-2">${p.burstTime}</td>
+                    <td class="p-2">${p.completionTime}</td>
+                    <td class="p-2">${p.turnaroundTime}</td>
+                    <td class="p-2">${p.waitingTime}</td>
+                `;
+            });
+
+            avgTatEl.textContent = result.averageTurnaroundTime.toFixed(2);
+            avgWtEl.textContent = result.averageWaitingTime.toFixed(2);
+            
+            resultsContainer.classList.remove('hidden');
+            
+            renderGanttChart(result.ganttEntries);
+        }
+
+        function renderGanttChart(ganttEntries) {
+            const ctx = document.getElementById('gantt-chart').getContext('2d');
+            const processColors = {};
+            const colorPalette = [
+                '#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899',
+                '#6366f1', '#14b8a6', '#f59e0b', '#d946ef', '#0ea5e9'
+            ];
+            let colorIndex = 0;
+
+            const processIds = [...new Set(ganttEntries.map(e => e.processId))].sort();
+            
+            processIds.forEach(id => {
+                processColors[id] = colorPalette[colorIndex % colorPalette.length];
+                colorIndex++;
+            });
+            
+            const datasets = processIds.map(id => {
+                const processEntries = ganttEntries.filter(entry => entry.processId === id);
+                return {
+                    label: id,
+                    data: processEntries.map(entry => ({
+                        x: [entry.startTime, entry.endTime],
+                        y: id
+                    })),
+                    backgroundColor: processColors[id] + 'BF',
+                    borderColor: processColors[id],
+                    borderWidth: 1,
+                    barPercentage: 0.6,
+                };
+            });
+            
+            if (ganttChart) {
+                ganttChart.destroy();
+            }
+
+            ganttChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: processIds,
+                    datasets: datasets
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    const raw = context.raw.x;
+                                    return `${context.dataset.label}: [${raw[0]}, ${raw[1]}] Duration: ${raw[1] - raw[0]}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Time',
+                                font: { size: 14 }
+                            },
+                            grid: {
+                                display: true
+                            },
+                            ticks: {
+                                stepSize: 1
+                            }
+                        },
+                        y: {
+                             title: {
+                                display: true,
+                                text: 'Processes',
+                                font: { size: 14 }
+                            },
+                             grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        summarizeBtn.addEventListener('click', async () => {
+            if (!currentSimulationResults) {
+                summaryContent.innerHTML = "<p>Please run a simulation first to get results.</p>";
+                summaryModal.classList.remove('hidden');
+                return;
+            }
+
+            summaryContent.innerHTML = "<p>Generating summary... Please wait. ✨</p>";
+            summaryModal.classList.remove('hidden');
+
+            const processesData = currentSimulationResults.completedProcesses.map(p => 
+                `Process ${p.id} (Arrival: ${p.arrivalTime}, Burst: ${p.burstTime}, Completion: ${p.completionTime}, Turnaround: ${p.turnaroundTime}, Waiting: ${p.waitingTime})`
+            ).join('; ');
+            
+            const ganttData = currentSimulationResults.ganttEntries.map(entry => 
+                `Time ${entry.startTime}-${entry.endTime}: ${entry.processId}`
+            ).join('; ');
+
+            const prompt = `Given the following Round Robin CPU scheduling simulation results with a quantum time of ${currentSimulationResults.quantumTime}:
+            Processes: ${processesData}
+            Gantt Chart Execution: ${ganttData}
+            Average Turnaround Time: ${currentSimulationResults.averageTurnaroundTime.toFixed(2)}
+            Average Waiting Time: ${currentSimulationResults.averageWaitingTime.toFixed(2)}
+            
+            Please provide a concise summary of these simulation results, highlighting key observations about process performance, any noticeable patterns in waiting or turnaround times, and how the quantum time might have influenced the outcome.`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    summaryContent.innerHTML = `<p>${text}</p>`;
+                } else {
+                    summaryContent.innerHTML = "<p>Failed to generate summary. Please try again.</p>";
+                }
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                summaryContent.innerHTML = "<p>Error generating summary. Please check your network connection or try again later.</p>";
+            }
+        });
+
+        function closeModal() {
+            summaryModal.classList.add('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+             showSection(currentSectionIndex); // Show the first section on load
+             document.getElementById('run-simulation').click();
+        });
+
+    </script>
+</body>
+</html>
